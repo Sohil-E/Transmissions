@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interactive EM Study Application</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="./module-data.js"></script>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --border: #334155;
+        --text: #f8fafc;
+        --muted: #cbd5e1;
+        --accent: #22d3ee;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, Segoe UI, Arial, sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at top, #1e293b, var(--bg) 55%);
+      }
+      .app { max-width: 1180px; margin: 0 auto; padding: 1rem; }
+      .title { margin: 0.25rem 0 0.9rem; font-size: clamp(1.3rem, 2.5vw, 2rem); }
+      .tabs, .topic-tabs, .page-nav { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      .tab, .btn {
+        border: 1px solid var(--border);
+        background: #0b1220;
+        color: var(--text);
+        border-radius: 999px;
+        padding: 0.5rem 0.95rem;
+        cursor: pointer;
+      }
+      .tab.active { border-color: var(--accent); background: #083344; }
+      .panel {
+        margin-top: 0.85rem;
+        background: rgba(17, 24, 39, 0.88);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1rem;
+      }
+      .small { color: var(--muted); font-size: 0.92rem; }
+      .flashcard-wrap { perspective: 1000px; margin-top: 0.7rem; }
+      .flashcard {
+        min-height: 180px;
+        position: relative;
+        transform-style: preserve-3d;
+        transition: transform 0.58s ease;
+      }
+      .flashcard.flipped { transform: rotateY(180deg); }
+      .face {
+        position: absolute;
+        inset: 0;
+        backface-visibility: hidden;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem;
+        display: grid;
+        align-content: center;
+        gap: 0.55rem;
+        background: #0b1220;
+      }
+      .back { transform: rotateY(180deg); background: #082f49; }
+      .button-row { display: flex; gap: 0.55rem; margin-top: 0.7rem; flex-wrap: wrap; }
+      .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      .question-card, .content-card, .media-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #0b1220;
+        padding: 0.9rem;
+        margin-top: 0.7rem;
+      }
+      .answer {
+        margin-top: 0.7rem;
+        border-left: 3px solid var(--accent);
+        padding-left: 0.7rem;
+      }
+      .input {
+        width: min(340px, 100%);
+        margin-top: 0.6rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #111827;
+        color: var(--text);
+        padding: 0.5rem 0.6rem;
+      }
+      .media-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 0.7rem;
+        margin-top: 0.7rem;
+      }
+      .media-grid img { width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
+      .video-wrap {
+        position: relative;
+        width: 100%;
+        padding-top: 56.25%;
+        margin-top: 0.6rem;
+      }
+      .video-wrap iframe {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        border-radius: 8px;
+      }
+      .wave-demo {
+        margin-top: 0.75rem;
+        height: 84px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: linear-gradient(90deg, #020617, #0f172a);
+        overflow: hidden;
+        position: relative;
+      }
+      .wave-demo::before {
+        content: "";
+        position: absolute;
+        top: 22px;
+        left: -25%;
+        width: 150%;
+        height: 40px;
+        background: repeating-linear-gradient(90deg, transparent 0 20px, rgba(34, 211, 238, 0.8) 20px 30px);
+        animation: travel 2.2s linear infinite;
+      }
+      @keyframes travel {
+        from { transform: translateX(0); }
+        to { transform: translateX(140px); }
+      }
+      a { color: #67e8f9; }
+      p { line-height: 1.65; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { useMemo, useState } = React;
+      const c = 3e8;
+
+      function randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+
+      function round(value, dp = 3) {
+        const factor = Math.pow(10, dp);
+        return Math.round(value * factor) / factor;
+      }
+
+      function templateSolver(templateId) {
+        if (templateId === "wavelength-from-frequency") {
+          const fMHz = randInt(80, 2400);
+          const fHz = fMHz * 1e6;
+          const lambda = c / fHz;
+          return {
+            prompt: `At frequency ${fMHz} MHz, find wavelength in meters (free space).`,
+            answer: `${round(lambda, 4)} m`,
+            steps: [
+              "Use lambda = c / f.",
+              `c = 3e8 m/s, f = ${fMHz} x 1e6 Hz.`,
+              `lambda = 3e8 / ${fHz} = ${round(lambda, 4)} m.`
+            ]
+          };
+        }
+        if (templateId === "frequency-from-wavelength") {
+          const lambda = round(randInt(5, 150) / 100, 2);
+          const f = c / lambda;
+          return {
+            prompt: `A wave has wavelength ${lambda} m. Find frequency in MHz.`,
+            answer: `${round(f / 1e6, 3)} MHz`,
+            steps: [
+              "Use f = c / lambda.",
+              `f = 3e8 / ${lambda}.`,
+              `f = ${round(f / 1e6, 3)} MHz.`
+            ]
+          };
+        }
+        if (templateId === "wave-impedance-from-fields") {
+          const e = randInt(20, 450);
+          const h = round(randInt(5, 120) / 10, 1);
+          const z = e / h;
+          return {
+            prompt: `Given E = ${e} V/m and H = ${h} A/m, calculate wave impedance.`,
+            answer: `${round(z, 3)} ohm`,
+            steps: [
+              "Use eta = E / H.",
+              `eta = ${e} / ${h}.`,
+              `eta = ${round(z, 3)} ohm.`
+            ]
+          };
+        }
+        if (templateId === "reflection-coefficient") {
+          const z0 = randInt(30, 90);
+          const zl = randInt(5, 200);
+          const gamma = (zl - z0) / (zl + z0);
+          return {
+            prompt: `For Z0 = ${z0} ohm and ZL = ${zl} ohm, calculate reflection coefficient.`,
+            answer: `${round(gamma, 4)}`,
+            steps: [
+              "Use Gamma = (ZL - Z0) / (ZL + Z0).",
+              `Gamma = (${zl} - ${z0}) / (${zl} + ${z0}).`,
+              `Gamma = ${round(gamma, 4)}.`
+            ]
+          };
+        }
+        if (templateId === "vswr-from-gamma") {
+          const gamma = round(randInt(5, 85) / 100, 2);
+          const vswr = (1 + gamma) / (1 - gamma);
+          return {
+            prompt: `If |Gamma| = ${gamma}, compute VSWR.`,
+            answer: `${round(vswr, 3)}`,
+            steps: [
+              "Use VSWR = (1 + |Gamma|) / (1 - |Gamma|).",
+              `VSWR = (1 + ${gamma}) / (1 - ${gamma}).`,
+              `VSWR = ${round(vswr, 3)}.`
+            ]
+          };
+        }
+        if (templateId === "return-loss-from-gamma") {
+          const gamma = round(randInt(3, 95) / 100, 2);
+          const rl = -20 * Math.log10(gamma);
+          return {
+            prompt: `If |Gamma| = ${gamma}, find return loss in dB.`,
+            answer: `${round(rl, 3)} dB`,
+            steps: [
+              "Use RL = -20 log10(|Gamma|).",
+              `RL = -20 log10(${gamma}).`,
+              `RL = ${round(rl, 3)} dB.`
+            ]
+          };
+        }
+        if (templateId === "quarter-wave-transformer") {
+          const z0 = randInt(40, 75);
+          const zl = randInt(20, 180);
+          const zt = Math.sqrt(z0 * zl);
+          return {
+            prompt: `Design a quarter-wave transformer for Z0 = ${z0} ohm and ZL = ${zl} ohm. Find Zt.`,
+            answer: `${round(zt, 3)} ohm`,
+            steps: [
+              "Use Zt = sqrt(Z0 x ZL).",
+              `Zt = sqrt(${z0} x ${zl}).`,
+              `Zt = ${round(zt, 3)} ohm.`
+            ]
+          };
+        }
+        if (templateId === "line-delay") {
+          const length = randInt(2, 80);
+          const vf = round(randInt(55, 90) / 100, 2);
+          const vp = vf * c;
+          const td = length / vp;
+          return {
+            prompt: `A line is ${length} m long with velocity factor ${vf}. Find one-way delay.`,
+            answer: `${round(td * 1e9, 3)} ns`,
+            steps: [
+              "Compute phase velocity vp = vf x c.",
+              `vp = ${vf} x 3e8 = ${round(vp, 0)} m/s.`,
+              `Delay td = L / vp = ${length} / ${round(vp, 0)} = ${round(td * 1e9, 3)} ns.`
+            ]
+          };
+        }
+        if (templateId === "fspl-db") {
+          const fMHz = randInt(400, 5800);
+          const dKm = round(randInt(5, 300) / 10, 1);
+          const fspl = 32.44 + 20 * Math.log10(fMHz) + 20 * Math.log10(dKm);
+          return {
+            prompt: `Find free-space path loss at ${fMHz} MHz over ${dKm} km.`,
+            answer: `${round(fspl, 3)} dB`,
+            steps: [
+              "Use FSPL = 32.44 + 20log10(fMHz) + 20log10(dKm).",
+              `FSPL = 32.44 + 20log10(${fMHz}) + 20log10(${dKm}).`,
+              `FSPL = ${round(fspl, 3)} dB.`
+            ]
+          };
+        }
+        if (templateId === "friis-rx-power") {
+          const pt = randInt(0, 35);
+          const gt = randInt(1, 20);
+          const gr = randInt(1, 20);
+          const fMHz = randInt(700, 5000);
+          const dKm = round(randInt(10, 200) / 10, 1);
+          const fspl = 32.44 + 20 * Math.log10(fMHz) + 20 * Math.log10(dKm);
+          const pr = pt + gt + gr - fspl;
+          return {
+            prompt: `Given Pt=${pt} dBm, Gt=${gt} dBi, Gr=${gr} dBi, f=${fMHz} MHz, d=${dKm} km, find Pr(dBm).`,
+            answer: `${round(pr, 3)} dBm`,
+            steps: [
+              "Compute FSPL first.",
+              `FSPL = 32.44 + 20log10(${fMHz}) + 20log10(${dKm}) = ${round(fspl, 3)} dB.`,
+              `Pr = Pt + Gt + Gr - FSPL = ${pt} + ${gt} + ${gr} - ${round(fspl, 3)} = ${round(pr, 3)} dBm.`
+            ]
+          };
+        }
+        if (templateId === "effective-aperture") {
+          const gDbi = randInt(2, 24);
+          const fGHz = round(randInt(8, 120) / 10, 1);
+          const gLin = Math.pow(10, gDbi / 10);
+          const fHz = fGHz * 1e9;
+          const lambda = c / fHz;
+          const ae = gLin * lambda * lambda / (4 * Math.PI);
+          return {
+            prompt: `For antenna gain ${gDbi} dBi at ${fGHz} GHz, find effective aperture.`,
+            answer: `${round(ae, 6)} m^2`,
+            steps: [
+              `Convert gain: G = 10^(GdBi/10) = 10^(${gDbi}/10) = ${round(gLin, 4)}.`,
+              `lambda = c/f = 3e8 / ${fHz} = ${round(lambda, 5)} m.`,
+              `Ae = G lambda^2 / (4pi) = ${round(ae, 6)} m^2.`
+            ]
+          };
+        }
+        const theta = randInt(5, 85);
+        const plf = Math.pow(Math.cos(theta * Math.PI / 180), 2);
+        const loss = -10 * Math.log10(plf);
+        return {
+          prompt: `For linear polarization mismatch angle ${theta} deg, find PLF and mismatch loss.`,
+          answer: `PLF=${round(plf, 4)}, loss=${round(loss, 3)} dB`,
+          steps: [
+            "Use PLF = cos^2(theta).",
+            `PLF = cos^2(${theta}) = ${round(plf, 4)}.`,
+            `Loss = -10log10(PLF) = ${round(loss, 3)} dB.`
+          ]
+        };
+      }
+
+      function generateQuestionBank(templates, count = 120) {
+        const bank = [];
+        for (let i = 0; i < count; i += 1) {
+          const t = templates[i % templates.length];
+          const solved = templateSolver(t.id);
+          bank.push({
+            id: i + 1,
+            topic: t.topic,
+            templateId: t.id,
+            prompt: solved.prompt,
+            answer: solved.answer,
+            steps: solved.steps
+          });
+        }
+        return bank;
+      }
+
+      function App() {
+        const data = window.ModuleData;
+        const [tab, setTab] = useState("flashcards");
+        const [cardIndex, setCardIndex] = useState(0);
+        const [flipped, setFlipped] = useState(false);
+        const [topicIndex, setTopicIndex] = useState(0);
+        const [pageIndex, setPageIndex] = useState(0);
+        const [questionBank, setQuestionBank] = useState(() => generateQuestionBank(data.questionTemplates, 120));
+        const [questionIndex, setQuestionIndex] = useState(0);
+        const [showSolution, setShowSolution] = useState(false);
+        const [attempt, setAttempt] = useState("");
+
+        const allFlashcards = useMemo(() => {
+          return data.topics.flatMap((topic) =>
+            topic.flashcards.map((card) => ({
+              ...card,
+              topic: topic.title
+            }))
+          );
+        }, [data.topics]);
+
+        const currentCard = allFlashcards[cardIndex];
+        const currentTopic = data.topics[topicIndex];
+        const currentPage = currentTopic.pages[pageIndex];
+        const currentQuestion = questionBank[questionIndex];
+
+        return (
+          <main className="app">
+            <h1 className="title">Interactive EM, Transmission Lines, and Antennas Module</h1>
+            <div className="tabs">
+              <button className={`tab ${tab === "flashcards" ? "active" : ""}`} onClick={() => setTab("flashcards")}>Flashcards</button>
+              <button className={`tab ${tab === "question-bank" ? "active" : ""}`} onClick={() => setTab("question-bank")}>Question Bank (120 Auto-Generated)</button>
+              <button className={`tab ${tab === "explanations" ? "active" : ""}`} onClick={() => setTab("explanations")}>Topic Explanations</button>
+            </div>
+
+            {tab === "flashcards" && (
+              <section className="panel">
+                <div className="small">Card {cardIndex + 1} of {allFlashcards.length} | Topic: {currentCard.topic}</div>
+                <div className="flashcard-wrap">
+                  <div className={`flashcard ${flipped ? "flipped" : ""}`}>
+                    <div className="face">
+                      <strong>Front</strong>
+                      <div>{currentCard.front}</div>
+                    </div>
+                    <div className="face back">
+                      <strong>Back</strong>
+                      <div>{currentCard.back}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="button-row">
+                  <button className="btn" onClick={() => setFlipped((v) => !v)}>Flip</button>
+                  <button className="btn" disabled={cardIndex === 0} onClick={() => { setCardIndex(cardIndex - 1); setFlipped(false); }}>Previous</button>
+                  <button className="btn" disabled={cardIndex === allFlashcards.length - 1} onClick={() => { setCardIndex(cardIndex + 1); setFlipped(false); }}>Next</button>
+                </div>
+              </section>
+            )}
+
+            {tab === "question-bank" && (
+              <section className="panel">
+                <div className="small">Question {questionIndex + 1} of {questionBank.length} | Topic: {currentQuestion.topic}</div>
+                <article className="question-card">
+                  <strong>{currentQuestion.prompt}</strong>
+                  <div>
+                    <input
+                      className="input"
+                      value={attempt}
+                      onChange={(e) => setAttempt(e.target.value)}
+                      placeholder="Type your answer attempt"
+                    />
+                  </div>
+                  <div className="button-row">
+                    <button className="btn" onClick={() => setShowSolution((s) => !s)}>{showSolution ? "Hide" : "Show"} answer + working</button>
+                  </div>
+                  {showSolution && (
+                    <div className="answer">
+                      <div><strong>Calculated answer:</strong> {currentQuestion.answer}</div>
+                      <ol>
+                        {currentQuestion.steps.map((step, i) => <li key={i}>{step}</li>)}
+                      </ol>
+                    </div>
+                  )}
+                </article>
+                <div className="button-row">
+                  <button className="btn" disabled={questionIndex === 0} onClick={() => { setQuestionIndex(questionIndex - 1); setShowSolution(false); setAttempt(""); }}>Previous question</button>
+                  <button className="btn" disabled={questionIndex === questionBank.length - 1} onClick={() => { setQuestionIndex(questionIndex + 1); setShowSolution(false); setAttempt(""); }}>Next question</button>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setQuestionBank(generateQuestionBank(data.questionTemplates, 120));
+                      setQuestionIndex(0);
+                      setShowSolution(false);
+                      setAttempt("");
+                    }}
+                  >
+                    Regenerate all numbers
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {tab === "explanations" && (
+              <section className="panel">
+                <div className="topic-tabs">
+                  {data.topics.map((topic, idx) => (
+                    <button
+                      key={topic.id}
+                      className={`tab ${idx === topicIndex ? "active" : ""}`}
+                      onClick={() => {
+                        setTopicIndex(idx);
+                        setPageIndex(0);
+                      }}
+                    >
+                      {topic.title}
+                    </button>
+                  ))}
+                </div>
+
+                <article className="content-card">
+                  <div className="small">{currentTopic.title} | {currentPage.title} ({pageIndex + 1}/3)</div>
+                  {currentPage.content.map((paragraph, idx) => <p key={idx}>{paragraph}</p>)}
+                </article>
+
+                <div className="page-nav">
+                  <button className="btn" disabled={pageIndex === 0} onClick={() => setPageIndex(pageIndex - 1)}>Previous page</button>
+                  <button className="btn" disabled={pageIndex === currentTopic.pages.length - 1} onClick={() => setPageIndex(pageIndex + 1)}>Next page</button>
+                </div>
+
+                <div className="wave-demo" title="Animated wave demonstration"></div>
+
+                <div className="media-grid">
+                  {currentTopic.media.images.map((image, idx) => (
+                    <article key={idx} className="media-card">
+                      <strong>{image.title}</strong>
+                      <img src={image.url} alt={image.title} />
+                      <div className="small">Source: {image.source}</div>
+                    </article>
+                  ))}
+                  {currentTopic.media.animations.map((anim, idx) => (
+                    <article key={idx} className="media-card">
+                      <strong>{anim.title}</strong>
+                      <p className="small">Interactive animation link for this topic.</p>
+                      <a href={anim.url} target="_blank" rel="noreferrer">Open animation</a>
+                    </article>
+                  ))}
+                </div>
+
+                {currentTopic.media.videos.map((video, idx) => (
+                  <article key={idx} className="media-card">
+                    <strong>{video.title}</strong>
+                    <div className="video-wrap">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${video.youtubeId}`}
+                        title={video.title}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  </article>
+                ))}
+              </section>
+            )}
+          </main>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
