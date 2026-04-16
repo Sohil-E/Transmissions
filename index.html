@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Interactive EM Study Application</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" />
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -20,7 +21,7 @@
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        font-family: Inter, Segoe UI, Arial, sans-serif;
+        font-family: "Space Grotesk", Inter, Segoe UI, Arial, sans-serif;
         color: var(--text);
         background: radial-gradient(circle at top, #1e293b, var(--bg) 55%);
       }
@@ -74,6 +75,20 @@
         padding: 0.9rem;
         margin-top: 0.7rem;
       }
+      .options { display: grid; gap: 0.55rem; margin-top: 0.7rem; }
+      .option {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #0b1220;
+        color: var(--text);
+        padding: 0.65rem 0.75rem;
+        text-align: left;
+        cursor: pointer;
+      }
+      .option:disabled { cursor: default; opacity: 0.9; }
+      .option.correct { border-color: #22c55e; background: rgba(34, 197, 94, 0.12); }
+      .option.correct-muted { border-color: #16a34a; background: rgba(22, 163, 74, 0.08); }
+      .option.incorrect { border-color: #f87171; background: rgba(248, 113, 113, 0.12); }
       .answer {
         margin-top: 0.7rem;
         border-left: 3px solid var(--accent);
@@ -140,207 +155,7 @@
     <div id="root"></div>
     <script type="text/babel">
       const { useMemo, useState } = React;
-      const c = 3e8;
-
-      function randInt(min, max) {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-      }
-
-      function round(value, dp = 3) {
-        const factor = Math.pow(10, dp);
-        return Math.round(value * factor) / factor;
-      }
-
-      function templateSolver(templateId) {
-        if (templateId === "wavelength-from-frequency") {
-          const fMHz = randInt(80, 2400);
-          const fHz = fMHz * 1e6;
-          const lambda = c / fHz;
-          return {
-            prompt: `At frequency ${fMHz} MHz, find wavelength in meters (free space).`,
-            answer: `${round(lambda, 4)} m`,
-            steps: [
-              "Use lambda = c / f.",
-              `c = 3e8 m/s, f = ${fMHz} x 1e6 Hz.`,
-              `lambda = 3e8 / ${fHz} = ${round(lambda, 4)} m.`
-            ]
-          };
-        }
-        if (templateId === "frequency-from-wavelength") {
-          const lambda = round(randInt(5, 150) / 100, 2);
-          const f = c / lambda;
-          return {
-            prompt: `A wave has wavelength ${lambda} m. Find frequency in MHz.`,
-            answer: `${round(f / 1e6, 3)} MHz`,
-            steps: [
-              "Use f = c / lambda.",
-              `f = 3e8 / ${lambda}.`,
-              `f = ${round(f / 1e6, 3)} MHz.`
-            ]
-          };
-        }
-        if (templateId === "wave-impedance-from-fields") {
-          const e = randInt(20, 450);
-          const h = round(randInt(5, 120) / 10, 1);
-          const z = e / h;
-          return {
-            prompt: `Given E = ${e} V/m and H = ${h} A/m, calculate wave impedance.`,
-            answer: `${round(z, 3)} ohm`,
-            steps: [
-              "Use eta = E / H.",
-              `eta = ${e} / ${h}.`,
-              `eta = ${round(z, 3)} ohm.`
-            ]
-          };
-        }
-        if (templateId === "reflection-coefficient") {
-          const z0 = randInt(30, 90);
-          const zl = randInt(5, 200);
-          const gamma = (zl - z0) / (zl + z0);
-          return {
-            prompt: `For Z0 = ${z0} ohm and ZL = ${zl} ohm, calculate reflection coefficient.`,
-            answer: `${round(gamma, 4)}`,
-            steps: [
-              "Use Gamma = (ZL - Z0) / (ZL + Z0).",
-              `Gamma = (${zl} - ${z0}) / (${zl} + ${z0}).`,
-              `Gamma = ${round(gamma, 4)}.`
-            ]
-          };
-        }
-        if (templateId === "vswr-from-gamma") {
-          const gamma = round(randInt(5, 85) / 100, 2);
-          const vswr = (1 + gamma) / (1 - gamma);
-          return {
-            prompt: `If |Gamma| = ${gamma}, compute VSWR.`,
-            answer: `${round(vswr, 3)}`,
-            steps: [
-              "Use VSWR = (1 + |Gamma|) / (1 - |Gamma|).",
-              `VSWR = (1 + ${gamma}) / (1 - ${gamma}).`,
-              `VSWR = ${round(vswr, 3)}.`
-            ]
-          };
-        }
-        if (templateId === "return-loss-from-gamma") {
-          const gamma = round(randInt(3, 95) / 100, 2);
-          const rl = -20 * Math.log10(gamma);
-          return {
-            prompt: `If |Gamma| = ${gamma}, find return loss in dB.`,
-            answer: `${round(rl, 3)} dB`,
-            steps: [
-              "Use RL = -20 log10(|Gamma|).",
-              `RL = -20 log10(${gamma}).`,
-              `RL = ${round(rl, 3)} dB.`
-            ]
-          };
-        }
-        if (templateId === "quarter-wave-transformer") {
-          const z0 = randInt(40, 75);
-          const zl = randInt(20, 180);
-          const zt = Math.sqrt(z0 * zl);
-          return {
-            prompt: `Design a quarter-wave transformer for Z0 = ${z0} ohm and ZL = ${zl} ohm. Find Zt.`,
-            answer: `${round(zt, 3)} ohm`,
-            steps: [
-              "Use Zt = sqrt(Z0 x ZL).",
-              `Zt = sqrt(${z0} x ${zl}).`,
-              `Zt = ${round(zt, 3)} ohm.`
-            ]
-          };
-        }
-        if (templateId === "line-delay") {
-          const length = randInt(2, 80);
-          const vf = round(randInt(55, 90) / 100, 2);
-          const vp = vf * c;
-          const td = length / vp;
-          return {
-            prompt: `A line is ${length} m long with velocity factor ${vf}. Find one-way delay.`,
-            answer: `${round(td * 1e9, 3)} ns`,
-            steps: [
-              "Compute phase velocity vp = vf x c.",
-              `vp = ${vf} x 3e8 = ${round(vp, 0)} m/s.`,
-              `Delay td = L / vp = ${length} / ${round(vp, 0)} = ${round(td * 1e9, 3)} ns.`
-            ]
-          };
-        }
-        if (templateId === "fspl-db") {
-          const fMHz = randInt(400, 5800);
-          const dKm = round(randInt(5, 300) / 10, 1);
-          const fspl = 32.44 + 20 * Math.log10(fMHz) + 20 * Math.log10(dKm);
-          return {
-            prompt: `Find free-space path loss at ${fMHz} MHz over ${dKm} km.`,
-            answer: `${round(fspl, 3)} dB`,
-            steps: [
-              "Use FSPL = 32.44 + 20log10(fMHz) + 20log10(dKm).",
-              `FSPL = 32.44 + 20log10(${fMHz}) + 20log10(${dKm}).`,
-              `FSPL = ${round(fspl, 3)} dB.`
-            ]
-          };
-        }
-        if (templateId === "friis-rx-power") {
-          const pt = randInt(0, 35);
-          const gt = randInt(1, 20);
-          const gr = randInt(1, 20);
-          const fMHz = randInt(700, 5000);
-          const dKm = round(randInt(10, 200) / 10, 1);
-          const fspl = 32.44 + 20 * Math.log10(fMHz) + 20 * Math.log10(dKm);
-          const pr = pt + gt + gr - fspl;
-          return {
-            prompt: `Given Pt=${pt} dBm, Gt=${gt} dBi, Gr=${gr} dBi, f=${fMHz} MHz, d=${dKm} km, find Pr(dBm).`,
-            answer: `${round(pr, 3)} dBm`,
-            steps: [
-              "Compute FSPL first.",
-              `FSPL = 32.44 + 20log10(${fMHz}) + 20log10(${dKm}) = ${round(fspl, 3)} dB.`,
-              `Pr = Pt + Gt + Gr - FSPL = ${pt} + ${gt} + ${gr} - ${round(fspl, 3)} = ${round(pr, 3)} dBm.`
-            ]
-          };
-        }
-        if (templateId === "effective-aperture") {
-          const gDbi = randInt(2, 24);
-          const fGHz = round(randInt(8, 120) / 10, 1);
-          const gLin = Math.pow(10, gDbi / 10);
-          const fHz = fGHz * 1e9;
-          const lambda = c / fHz;
-          const ae = gLin * lambda * lambda / (4 * Math.PI);
-          return {
-            prompt: `For antenna gain ${gDbi} dBi at ${fGHz} GHz, find effective aperture.`,
-            answer: `${round(ae, 6)} m^2`,
-            steps: [
-              `Convert gain: G = 10^(GdBi/10) = 10^(${gDbi}/10) = ${round(gLin, 4)}.`,
-              `lambda = c/f = 3e8 / ${fHz} = ${round(lambda, 5)} m.`,
-              `Ae = G lambda^2 / (4pi) = ${round(ae, 6)} m^2.`
-            ]
-          };
-        }
-        const theta = randInt(5, 85);
-        const plf = Math.pow(Math.cos(theta * Math.PI / 180), 2);
-        const loss = -10 * Math.log10(plf);
-        return {
-          prompt: `For linear polarization mismatch angle ${theta} deg, find PLF and mismatch loss.`,
-          answer: `PLF=${round(plf, 4)}, loss=${round(loss, 3)} dB`,
-          steps: [
-            "Use PLF = cos^2(theta).",
-            `PLF = cos^2(${theta}) = ${round(plf, 4)}.`,
-            `Loss = -10log10(PLF) = ${round(loss, 3)} dB.`
-          ]
-        };
-      }
-
-      function generateQuestionBank(templates, count = 120) {
-        const bank = [];
-        for (let i = 0; i < count; i += 1) {
-          const t = templates[i % templates.length];
-          const solved = templateSolver(t.id);
-          bank.push({
-            id: i + 1,
-            topic: t.topic,
-            templateId: t.id,
-            prompt: solved.prompt,
-            answer: solved.answer,
-            steps: solved.steps
-          });
-        }
-        return bank;
-      }
+      const QUESTION_COUNT = 120;
 
       function App() {
         const data = window.ModuleData;
@@ -349,10 +164,12 @@
         const [flipped, setFlipped] = useState(false);
         const [topicIndex, setTopicIndex] = useState(0);
         const [pageIndex, setPageIndex] = useState(0);
-        const [questionBank, setQuestionBank] = useState(() => generateQuestionBank(data.questionTemplates, 120));
+        const [questionBank, setQuestionBank] = useState(() => data.generateQuestionBank(QUESTION_COUNT));
         const [questionIndex, setQuestionIndex] = useState(0);
         const [showSolution, setShowSolution] = useState(false);
         const [attempt, setAttempt] = useState("");
+        const [quizIndex, setQuizIndex] = useState(0);
+        const [quizSelections, setQuizSelections] = useState({});
 
         const allFlashcards = useMemo(() => {
           return data.topics.flatMap((topic) =>
@@ -367,12 +184,27 @@
         const currentTopic = data.topics[topicIndex];
         const currentPage = currentTopic.pages[pageIndex];
         const currentQuestion = questionBank[questionIndex];
+        const quizQuestions = data.quizQuestions;
+        const currentQuiz = quizQuestions[quizIndex];
+        const quizAttempted = useMemo(() => Object.keys(quizSelections).length, [quizSelections]);
+        const quizScore = useMemo(
+          () => Object.entries(quizSelections).reduce((score, [idx, selected]) => {
+            return selected === quizQuestions[Number(idx)].correctAnswerIndex ? score + 1 : score;
+          }, 0),
+          [quizSelections, quizQuestions]
+        );
+
+        function selectOption(optionIdx) {
+          if (typeof quizSelections[quizIndex] !== "undefined") return;
+          setQuizSelections((prev) => ({ ...prev, [quizIndex]: optionIdx }));
+        }
 
         return (
           <main className="app">
             <h1 className="title">Interactive EM, Transmission Lines, and Antennas Module</h1>
             <div className="tabs">
               <button className={`tab ${tab === "flashcards" ? "active" : ""}`} onClick={() => setTab("flashcards")}>Flashcards</button>
+              <button className={`tab ${tab === "quiz" ? "active" : ""}`} onClick={() => setTab("quiz")}>Knowledge Check Quiz</button>
               <button className={`tab ${tab === "question-bank" ? "active" : ""}`} onClick={() => setTab("question-bank")}>Question Bank (120 Auto-Generated)</button>
               <button className={`tab ${tab === "explanations" ? "active" : ""}`} onClick={() => setTab("explanations")}>Topic Explanations</button>
             </div>
@@ -396,6 +228,62 @@
                   <button className="btn" onClick={() => setFlipped((v) => !v)}>Flip</button>
                   <button className="btn" disabled={cardIndex === 0} onClick={() => { setCardIndex(cardIndex - 1); setFlipped(false); }}>Previous</button>
                   <button className="btn" disabled={cardIndex === allFlashcards.length - 1} onClick={() => { setCardIndex(cardIndex + 1); setFlipped(false); }}>Next</button>
+                </div>
+              </section>
+            )}
+
+            {tab === "quiz" && (
+              <section className="panel">
+                <div className="small">
+                  Question {quizIndex + 1} of {quizQuestions.length} | Attempted {quizAttempted} | Score {quizScore}/{quizQuestions.length}
+                </div>
+                <article className="question-card">
+                  <strong>{currentQuiz.question}</strong>
+                  <div className="options">
+                    {currentQuiz.options.map((option, idx) => {
+                      const chosen = quizSelections[quizIndex];
+                      const locked = typeof chosen !== "undefined";
+                      const isCorrect = idx === currentQuiz.correctAnswerIndex;
+                      const isSelected = chosen === idx;
+                      let stateClass = "";
+                      if (locked) {
+                        if (isSelected && isCorrect) stateClass = "correct";
+                        else if (isSelected && !isCorrect) stateClass = "incorrect";
+                        else if (isCorrect) stateClass = "correct-muted";
+                      }
+                      return (
+                        <button
+                          key={idx}
+                          className={`option ${stateClass}`}
+                          onClick={() => selectOption(idx)}
+                          disabled={locked}
+                        >
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {typeof quizSelections[quizIndex] !== "undefined" && (
+                    <div className="answer">
+                      <div><strong>Solution steps</strong></div>
+                      <ol>
+                        {currentQuiz.steps.map((step, i) => <li key={i}>{step}</li>)}
+                      </ol>
+                    </div>
+                  )}
+                </article>
+                <div className="button-row">
+                  <button className="btn" disabled={quizIndex === 0} onClick={() => setQuizIndex(quizIndex - 1)}>Previous</button>
+                  <button className="btn" disabled={quizIndex === quizQuestions.length - 1} onClick={() => setQuizIndex(quizIndex + 1)}>Next</button>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setQuizSelections({});
+                      setQuizIndex(0);
+                    }}
+                  >
+                    Reset quiz
+                  </button>
                 </div>
               </section>
             )}
@@ -431,7 +319,7 @@
                   <button
                     className="btn"
                     onClick={() => {
-                      setQuestionBank(generateQuestionBank(data.questionTemplates, 120));
+                      setQuestionBank(data.generateQuestionBank(QUESTION_COUNT));
                       setQuestionIndex(0);
                       setShowSolution(false);
                       setAttempt("");
@@ -461,7 +349,7 @@
                 </div>
 
                 <article className="content-card">
-                  <div className="small">{currentTopic.title} | {currentPage.title} ({pageIndex + 1}/3)</div>
+                  <div className="small">{currentTopic.title} | {currentPage.title} ({pageIndex + 1}/{currentTopic.pages.length})</div>
                   {currentPage.content.map((paragraph, idx) => <p key={idx}>{paragraph}</p>)}
                 </article>
 

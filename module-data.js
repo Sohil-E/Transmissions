@@ -1,5 +1,16 @@
-window.ModuleData = {
-  topics: [
+(() => {
+  const c = 3e8;
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function round(value, dp = 3) {
+    const factor = Math.pow(10, dp);
+    return Math.round(value * factor) / factor;
+  }
+
+  const topics = [
     {
       id: "electromagnetics",
       title: "Electromagnetics",
@@ -195,8 +206,9 @@ window.ModuleData = {
         { front: "Why sidelobes matter", back: "They waste power and increase interference susceptibility." }
       ]
     }
-  ],
-  questionTemplates: [
+  ];
+
+  const questionTemplates = [
     { id: "wavelength-from-frequency", topic: "electromagnetics" },
     { id: "frequency-from-wavelength", topic: "electromagnetics" },
     { id: "wave-impedance-from-fields", topic: "electromagnetics" },
@@ -209,5 +221,366 @@ window.ModuleData = {
     { id: "friis-rx-power", topic: "antennas" },
     { id: "effective-aperture", topic: "antennas" },
     { id: "polarization-loss", topic: "antennas" }
-  ]
-};
+  ];
+
+  function templateSolver(templateId) {
+    if (templateId === "wavelength-from-frequency") {
+      const fMHz = randInt(80, 2400);
+      const fHz = fMHz * 1e6;
+      const lambda = c / fHz;
+      return {
+        prompt: `At frequency ${fMHz} MHz, find wavelength in meters (free space).`,
+        answer: `${round(lambda, 4)} m`,
+        steps: [
+          "Use lambda = c / f.",
+          `c = 3e8 m/s, f = ${fMHz} x 1e6 Hz.`,
+          `lambda = 3e8 / ${fHz} = ${round(lambda, 4)} m.`
+        ]
+      };
+    }
+    if (templateId === "frequency-from-wavelength") {
+      const lambda = round(randInt(5, 150) / 100, 2);
+      const f = c / lambda;
+      return {
+        prompt: `A wave has wavelength ${lambda} m. Find frequency in MHz.`,
+        answer: `${round(f / 1e6, 3)} MHz`,
+        steps: [
+          "Use f = c / lambda.",
+          `f = 3e8 / ${lambda}.`,
+          `f = ${round(f / 1e6, 3)} MHz.`
+        ]
+      };
+    }
+    if (templateId === "wave-impedance-from-fields") {
+      const e = randInt(20, 450);
+      const h = round(randInt(5, 120) / 10, 1);
+      const z = e / h;
+      return {
+        prompt: `Given E = ${e} V/m and H = ${h} A/m, calculate wave impedance.`,
+        answer: `${round(z, 3)} ohm`,
+        steps: [
+          "Use eta = E / H.",
+          `eta = ${e} / ${h}.`,
+          `eta = ${round(z, 3)} ohm.`
+        ]
+      };
+    }
+    if (templateId === "reflection-coefficient") {
+      const z0 = randInt(30, 90);
+      const zl = randInt(5, 200);
+      const gamma = (zl - z0) / (zl + z0);
+      return {
+        prompt: `For Z0 = ${z0} ohm and ZL = ${zl} ohm, calculate reflection coefficient.`,
+        answer: `${round(gamma, 4)}`,
+        steps: [
+          "Use Gamma = (ZL - Z0) / (ZL + Z0).",
+          `Gamma = (${zl} - ${z0}) / (${zl} + ${z0}).`,
+          `Gamma = ${round(gamma, 4)}.`
+        ]
+      };
+    }
+    if (templateId === "vswr-from-gamma") {
+      const gamma = round(randInt(5, 85) / 100, 2);
+      const vswr = (1 + gamma) / (1 - gamma);
+      return {
+        prompt: `If |Gamma| = ${gamma}, compute VSWR.`,
+        answer: `${round(vswr, 3)}`,
+        steps: [
+          "Use VSWR = (1 + |Gamma|) / (1 - |Gamma|).",
+          `VSWR = (1 + ${gamma}) / (1 - ${gamma}).`,
+          `VSWR = ${round(vswr, 3)}.`
+        ]
+      };
+    }
+    if (templateId === "return-loss-from-gamma") {
+      const gamma = round(randInt(3, 95) / 100, 2);
+      const rl = -20 * Math.log10(gamma);
+      return {
+        prompt: `If |Gamma| = ${gamma}, find return loss in dB.`,
+        answer: `${round(rl, 3)} dB`,
+        steps: [
+          "Use RL = -20 log10(|Gamma|).",
+          `RL = -20 log10(${gamma}).`,
+          `RL = ${round(rl, 3)} dB.`
+        ]
+      };
+    }
+    if (templateId === "quarter-wave-transformer") {
+      const z0 = randInt(40, 75);
+      const zl = randInt(20, 180);
+      const zt = Math.sqrt(z0 * zl);
+      return {
+        prompt: `Design a quarter-wave transformer for Z0 = ${z0} ohm and ZL = ${zl} ohm. Find Zt.`,
+        answer: `${round(zt, 3)} ohm`,
+        steps: [
+          "Use Zt = sqrt(Z0 x ZL).",
+          `Zt = sqrt(${z0} x ${zl}).`,
+          `Zt = ${round(zt, 3)} ohm.`
+        ]
+      };
+    }
+    if (templateId === "line-delay") {
+      const length = randInt(2, 80);
+      const vf = round(randInt(55, 90) / 100, 2);
+      const vp = vf * c;
+      const td = length / vp;
+      return {
+        prompt: `A line is ${length} m long with velocity factor ${vf}. Find one-way delay.`,
+        answer: `${round(td * 1e9, 3)} ns`,
+        steps: [
+          "Compute phase velocity vp = vf x c.",
+          `vp = ${vf} x 3e8 = ${round(vp, 0)} m/s.`,
+          `Delay td = L / vp = ${length} / ${round(vp, 0)} = ${round(td * 1e9, 3)} ns.`
+        ]
+      };
+    }
+    if (templateId === "fspl-db") {
+      const fMHz = randInt(400, 5800);
+      const dKm = round(randInt(5, 300) / 10, 1);
+      const fspl = 32.44 + 20 * Math.log10(fMHz) + 20 * Math.log10(dKm);
+      return {
+        prompt: `Find free-space path loss at ${fMHz} MHz over ${dKm} km.`,
+        answer: `${round(fspl, 3)} dB`,
+        steps: [
+          "Use FSPL = 32.44 + 20log10(fMHz) + 20log10(dKm).",
+          `FSPL = 32.44 + 20log10(${fMHz}) + 20log10(${dKm}).`,
+          `FSPL = ${round(fspl, 3)} dB.`
+        ]
+      };
+    }
+    if (templateId === "friis-rx-power") {
+      const pt = randInt(0, 35);
+      const gt = randInt(1, 20);
+      const gr = randInt(1, 20);
+      const fMHz = randInt(700, 5000);
+      const dKm = round(randInt(10, 200) / 10, 1);
+      const fspl = 32.44 + 20 * Math.log10(fMHz) + 20 * Math.log10(dKm);
+      const pr = pt + gt + gr - fspl;
+      return {
+        prompt: `Given Pt=${pt} dBm, Gt=${gt} dBi, Gr=${gr} dBi, f=${fMHz} MHz, d=${dKm} km, find Pr(dBm).`,
+        answer: `${round(pr, 3)} dBm`,
+        steps: [
+          "Compute FSPL first.",
+          `FSPL = 32.44 + 20log10(${fMHz}) + 20log10(${dKm}) = ${round(fspl, 3)} dB.`,
+          `Pr = Pt + Gt + Gr - FSPL = ${pt} + ${gt} + ${gr} - ${round(fspl, 3)} = ${round(pr, 3)} dBm.`
+        ]
+      };
+    }
+    if (templateId === "effective-aperture") {
+      const gDbi = randInt(2, 24);
+      const fGHz = round(randInt(8, 120) / 10, 1);
+      const gLin = Math.pow(10, gDbi / 10);
+      const fHz = fGHz * 1e9;
+      const lambda = c / fHz;
+      const ae = gLin * lambda * lambda / (4 * Math.PI);
+      return {
+        prompt: `For antenna gain ${gDbi} dBi at ${fGHz} GHz, find effective aperture.`,
+        answer: `${round(ae, 6)} m^2`,
+        steps: [
+          `Convert gain: G = 10^(GdBi/10) = 10^(${gDbi}/10) = ${round(gLin, 4)}.`,
+          `lambda = c/f = 3e8 / ${fHz} = ${round(lambda, 5)} m.`,
+          `Ae = G lambda^2 / (4pi) = ${round(ae, 6)} m^2.`
+        ]
+      };
+    }
+    const theta = randInt(5, 85);
+    const plf = Math.pow(Math.cos(theta * Math.PI / 180), 2);
+    const loss = -10 * Math.log10(plf);
+    return {
+      prompt: `For linear polarization mismatch angle ${theta} deg, find PLF and mismatch loss.`,
+      answer: `PLF=${round(plf, 4)}, loss=${round(loss, 3)} dB`,
+      steps: [
+        "Use PLF = cos^2(theta).",
+        `PLF = cos^2(${theta}) = ${round(plf, 4)}.`,
+        `Loss = -10log10(PLF) = ${round(loss, 3)} dB.`
+      ]
+    };
+  }
+
+  function generateQuestionBank(count = 120) {
+    const bank = [];
+    for (let i = 0; i < count; i += 1) {
+      const template = questionTemplates[i % questionTemplates.length];
+      const solved = templateSolver(template.id);
+      bank.push({
+        id: i + 1,
+        topic: template.topic,
+        templateId: template.id,
+        prompt: solved.prompt,
+        answer: solved.answer,
+        steps: solved.steps
+      });
+    }
+    return bank;
+  }
+
+  const quizQuestions = [
+    {
+      id: 1,
+      topic: "electromagnetics",
+      question: "What is the free-space wavelength at 300 MHz?",
+      options: ["0.5 m", "1.0 m", "10 m", "30 m"],
+      correctAnswerIndex: 1,
+      steps: [
+        "Use lambda = c / f.",
+        "lambda = 3e8 / 3e8 = 1 m."
+      ]
+    },
+    {
+      id: 2,
+      topic: "electromagnetics",
+      question: "If E = 12 V/m and H = 0.032 A/m for a plane wave, what is the power density?",
+      options: ["0.384 W/m^2", "6.0 W/m^2", "12.0 W/m^2", "377 W/m^2"],
+      correctAnswerIndex: 1,
+      steps: [
+        "Poynting vector magnitude S = E x H for a uniform plane wave.",
+        "S = 12 x 0.032 = 0.384 W/m^2."
+      ]
+    },
+    {
+      id: 3,
+      topic: "electromagnetics",
+      question: "What is the approximate free-space wave impedance?",
+      options: ["50 ohm", "120 ohm", "240 ohm", "377 ohm"],
+      correctAnswerIndex: 3,
+      steps: [
+        "Wave impedance eta0 = sqrt(mu0/eps0) ≈ 377 ohm."
+      ]
+    },
+    {
+      id: 4,
+      topic: "electromagnetics",
+      question: "Two antennas are orthogonally linearly polarized. What is the ideal polarization loss factor (PLF)?",
+      options: ["0 (complete mismatch)", "0.25", "0.5", "1 (perfect match)"],
+      correctAnswerIndex: 0,
+      steps: [
+        "Orthogonal linear polarizations have PLF = 0, implying very poor coupling."
+      ]
+    },
+    {
+      id: 5,
+      topic: "electromagnetics",
+      question: "A wave has wavelength 0.6 m in free space. What is the frequency?",
+      options: ["200 MHz", "300 MHz", "400 MHz", "500 MHz"],
+      correctAnswerIndex: 3,
+      steps: [
+        "Use f = c / lambda.",
+        "f = 3e8 / 0.6 ≈ 5e8 Hz = 500 MHz."
+      ]
+    },
+    {
+      id: 6,
+      topic: "transmission-lines",
+      question: "For Z0 = 50 ohm and ZL = 100 ohm, what is reflection coefficient magnitude?",
+      options: ["0.33", "0.5", "1.0", "0.1"],
+      correctAnswerIndex: 0,
+      steps: [
+        "Gamma = (ZL - Z0) / (ZL + Z0).",
+        "Gamma = (100 - 50) / (150) ≈ 0.33."
+      ]
+    },
+    {
+      id: 7,
+      topic: "transmission-lines",
+      question: "If |Gamma| = 0.2, what is VSWR?",
+      options: ["1.0", "1.25", "1.5", "2.0"],
+      correctAnswerIndex: 2,
+      steps: [
+        "VSWR = (1 + |Gamma|) / (1 - |Gamma|).",
+        "VSWR = 1.2 / 0.8 = 1.5."
+      ]
+    },
+    {
+      id: 8,
+      topic: "transmission-lines",
+      question: "Quarter-wave transformer to match 50 ohm to 100 ohm uses what impedance?",
+      options: ["35.4 ohm", "50.0 ohm", "70.7 ohm", "90.9 ohm"],
+      correctAnswerIndex: 2,
+      steps: [
+        "Zt = sqrt(Z0 x ZL) = sqrt(50 x 100) ≈ 70.7 ohm."
+      ]
+    },
+    {
+      id: 9,
+      topic: "transmission-lines",
+      question: "A 10 m line with velocity factor 0.67 has one-way delay of approximately:",
+      options: ["10 ns", "25 ns", "50 ns", "100 ns"],
+      correctAnswerIndex: 2,
+      steps: [
+        "vp = vf x c = 0.67 x 3e8 ≈ 2.01e8 m/s.",
+        "Delay = length / vp = 10 / 2.01e8 ≈ 50 ns."
+      ]
+    },
+    {
+      id: 10,
+      topic: "transmission-lines",
+      question: "If |Gamma| = 0.1, what is the return loss?",
+      options: ["-10 dB", "10 dB", "20 dB", "30 dB"],
+      correctAnswerIndex: 2,
+      steps: [
+        "RL = -20 log10(|Gamma|) = -20 log10(0.1) = 20 dB."
+      ]
+    },
+    {
+      id: 11,
+      topic: "antennas",
+      question: "Free-space path loss at 1 GHz over 10 km is approximately:",
+      options: ["82 dB", "92 dB", "102 dB", "112 dB"],
+      correctAnswerIndex: 3,
+      steps: [
+        "FSPL = 32.44 + 20log10(fMHz) + 20log10(dKm).",
+        "FSPL = 32.44 + 20log10(1000) + 20log10(10) ≈ 112 dB."
+      ]
+    },
+    {
+      id: 12,
+      topic: "antennas",
+      question: "Using Friis, Pt = 20 dBm, Gt = 3 dBi, Gr = 3 dBi, and FSPL = 100 dB. What is Pr?",
+      options: ["-80 dBm", "-74 dBm", "-60 dBm", "-40 dBm"],
+      correctAnswerIndex: 1,
+      steps: [
+        "Pr = Pt + Gt + Gr - FSPL.",
+        "Pr = 20 + 3 + 3 - 100 = -74 dBm."
+      ]
+    },
+    {
+      id: 13,
+      topic: "antennas",
+      question: "For 10 dBi gain at 2.4 GHz, which effective aperture is closest?",
+      options: ["0.001 m^2", "0.006 m^2", "0.012 m^2", "0.024 m^2"],
+      correctAnswerIndex: 2,
+      steps: [
+        "lambda = 3e8 / 2.4e9 ≈ 0.125 m.",
+        "Ae = G lambda^2 / (4pi) with Glin=10 gives ≈ 0.012 m^2."
+      ]
+    },
+    {
+      id: 14,
+      topic: "antennas",
+      question: "Polarization mismatch at 45° between linear antennas causes what loss?",
+      options: ["0 dB", "1.5 dB", "3 dB", "6 dB"],
+      correctAnswerIndex: 2,
+      steps: [
+        "PLF = cos^2(45°) = 0.5, so loss = -10log10(0.5) ≈ 3 dB."
+      ]
+    },
+    {
+      id: 15,
+      topic: "antennas",
+      question: "Increasing antenna gain by 3 dB does what to effective aperture?",
+      options: ["Halves it", "No change", "Doubles it", "Triples it"],
+      correctAnswerIndex: 2,
+      steps: [
+        "3 dB gain increase doubles linear gain.",
+        "Effective aperture is proportional to linear gain, so it doubles."
+      ]
+    }
+  ];
+
+  window.ModuleData = {
+    topics,
+    questionTemplates,
+    quizQuestions,
+    generateQuestionBank
+  };
+})(); 
